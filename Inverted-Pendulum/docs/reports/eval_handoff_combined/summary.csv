@@ -1,0 +1,3 @@
+controller,status,scenario,episodes,swing_up_rate,balance_rate,violation_rate,mean_abs_angle_error_deg,max_abs_angle_error_deg,mean_time_to_upright_s,median_time_to_upright_s,mean_balanced_time_s,mean_longest_balance_s,mean_effort_abs,mean_effort_sq,mean_return
+dqn,trained,combined,100,1.0,1.0,0.0,5.670991712500451,179.97392915625315,0.4262,0.02,9.492599999999886,9.477799999999888,5.944999999999961,5.944999999999961,1198.8904665930793
+dqn_swingup+stabilize,trained,combined,100,1.0,1.0,0.0,5.520802958860582,179.97392915625315,0.4262,0.02,9.488599999999884,9.478399999999887,3.5208000000000004,3.5208000000000004,1202.8720651691278

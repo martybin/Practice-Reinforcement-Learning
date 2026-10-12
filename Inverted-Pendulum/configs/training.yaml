@@ -1,0 +1,85 @@
+# DQN hyper-parameters, training modes and curriculum stages (scripts/train.py).
+# Any value can be overridden on the command line:  --set dqn.gamma=0.98  --set stages.swingup.max_episodes=800
+
+dqn:
+  hidden_dims: [128, 128]
+  activation: relu
+  learning_rate: 5.0e-4
+  weight_decay: 0.0
+  gamma: 0.99
+  batch_size: 128
+  replay_capacity: 200000
+  learning_starts: 2000          # environment steps before the first gradient step
+  train_freq: 2                  # environment steps between update rounds
+  gradient_steps: 1              # gradient steps per round
+  target_update_interval: 500    # gradient steps between hard target copies (when tau = 1)
+  tau: 1.0                       # < 1 switches to soft (Polyak) target updates every gradient step
+  epsilon_start: 1.0
+  epsilon_end: 0.05
+  epsilon_decay_steps: 60000     # linear decay horizon, environment steps
+  grad_clip_norm: 10.0
+  huber_delta: 1.0
+  double_dqn: true
+
+training:
+  mode: combined                 # stabilize | swingup | combined | curriculum
+  episodes: null                 # overrides every stage's max_episodes when set
+  seed: 0
+  device: auto                   # auto = CUDA if available, else CPU
+  torch_threads: 1               # CPU threads used by PyTorch
+  run_name: null                 # default: the mode name -> logs/<run>/, checkpoints/<run>/
+  checkpoint_dir: checkpoints
+  log_dir: logs
+  eval_every: 25                 # training episodes between greedy evaluations (fixed seeds)
+  eval_episodes: 10
+  eval_seed: 50000
+  snapshot_every: 25             # save the network every N episodes -> checkpoints/<run>/snapshots/ (0 = off)
+  print_every: 10
+  tensorboard: false
+  overwrite: false
+  render: false
+  init_from: null
+  curriculum_order: [stabilize, swingup, combined]
+
+# One entry per training task. 'env' / 'reward' entries override those sections of default.yaml for the stage.
+stages:
+  stabilize:                     # Stage A: start near upright, learn to keep balance
+    max_episodes: 400
+    promote_success_rate: 0.9
+    promote_window: 50
+    min_episodes: 100
+    env:
+      start_mode: upright
+      success_mode: balance
+      terminate_on_success: false
+      max_episode_seconds: 8.0
+  swingup:                       # Stage B: start hanging, learn to pump energy and reach the catch region
+    max_episodes: 1200
+    promote_success_rate: 0.8
+    promote_window: 50
+    min_episodes: 200
+    exploration_restart: 0.4
+    env:
+      start_mode: hanging
+      success_mode: reach        # success = enter the region a stabilizer can take over
+      terminate_on_success: true
+      max_episode_seconds: 8.0
+    reward:
+      # Reaching the catch region ENDS the episode, so its bonus must be worth more than staying alive and
+      # collecting the per-step reward forever: 2 / (1 - gamma) = 200 for gamma = 0.99. With a bonus of 50 the
+      # agent learns to avoid succeeding (we observed exactly that drift). Keep this above 2 / (1 - dqn.gamma).
+      success_bonus: 250.0
+  combined:                      # Stage C: both start types, slightly randomized physics, small disturbances
+    max_episodes: 1000
+    promote_success_rate: 1.0
+    promote_window: 50
+    min_episodes: 100
+    exploration_restart: 0.3
+    env:
+      start_mode: mixed
+      success_mode: balance
+      terminate_on_success: false
+      max_episode_seconds: 10.0
+      physics_randomization: 0.1
+      disturbance_probability: 0.002
+      disturbance_magnitude: 2.0

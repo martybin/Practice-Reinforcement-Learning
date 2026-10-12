@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pendulum-rl"
+version = "0.1.0"
+description = "Reinforcement-learning swing-up and stabilization of a moving-support (rail-mounted) pendulum"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "gymnasium>=0.29",
+    "torch>=2.2",
+    "pyyaml>=6.0",
+    "pandas>=2.0",
+    "matplotlib>=3.8",
+    "pygame>=2.5",
+]
+
+[project.optional-dependencies]
+dashboard = ["streamlit>=1.30"]
+tensorboard = ["tensorboard>=2.14"]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pendulum_rl = ["visualization/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+markers = ["slow: tests that run a short training or long simulation"]
+filterwarnings = ["ignore::DeprecationWarning:pygame.*", "ignore:pkg_resources:UserWarning"]

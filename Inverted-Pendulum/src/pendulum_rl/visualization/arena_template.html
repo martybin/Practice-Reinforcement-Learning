@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learning arena</title>
+<style>
+  :root {
+    --bg: #070b16; --panel: #101a32; --panel-border: #1f2d4d; --text: #e6edf7; --dim: #8b9bb8; --faint: #5b6b88;
+    --accent: #38bdf8; --amber: #f59e0b; --good: #34d399; --warn: #fbbf24; --bad: #f87171; --blue: #60a5fa;
+    --phase: #60a5fa;
+    --mono: Consolas, "DejaVu Sans Mono", Menlo, "Courier New", monospace;
+    --sans: "Segoe UI", "Helvetica Neue", "DejaVu Sans", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  body { padding: 4px 2px 8px; user-select: none; }
+  #app { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 12px; align-items: start; }
+  @media (max-width: 900px) { #app { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; padding: 12px 16px 14px; }
+  .card + .card { margin-top: 12px; }
+  .label { font-size: 12px; color: var(--faint); letter-spacing: .04em; text-transform: uppercase; margin-bottom: 8px; }
+  canvas { display: block; width: 100%; }
+  #stage { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid var(--panel-border); }
+  #scene { height: 440px; }
+  /* ---- HUD */
+  .big { font-size: 20px; font-weight: 700; letter-spacing: .01em; }
+  .sub { font-size: 12px; color: var(--dim); margin-top: 2px; }
+  .mono { font-family: var(--mono); font-weight: 700; font-size: 15px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; }
+  .row .k { color: var(--dim); font-size: 13px; }
+  .row .s { display: block; text-align: right; font: 11px var(--mono); color: var(--faint); font-weight: 400; }
+  .row .v { text-align: right; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 5px 14px 5px 12px; border-radius: 999px; font-size: 13px;
+          font-weight: 600; color: var(--phase); background: color-mix(in srgb, var(--phase) 16%, var(--panel));
+          border: 1px solid color-mix(in srgb, var(--phase) 65%, var(--panel)); }
+  .pill i { width: 9px; height: 9px; border-radius: 50%; background: var(--phase); box-shadow: 0 0 8px var(--phase); }
+  .toprow { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+  .bar { position: relative; height: 8px; background: #0a1020; border: 1px solid var(--panel-border); border-radius: 4px; }
+  .bar > b { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; background: var(--accent); }
+  .bar > u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); }
+  .bar.centered::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--dim); }
+  .barrow { display: grid; grid-template-columns: 96px 1fr 52px; gap: 10px; align-items: center; margin: 9px 0; font-size: 13px; color: var(--dim); }
+  .barrow .mono { text-align: right; color: var(--text); }
+  .verdict { border-radius: 8px; padding: 9px 12px; border: 1px solid; margin-bottom: 8px; }
+  .verdict b { display: block; font-size: 15px; letter-spacing: .04em; }
+  .verdict span { font-size: 12.5px; opacity: .92; }
+  .verdict.good { color: var(--good); background: rgba(52,211,153,.10); border-color: rgba(52,211,153,.55); }
+  .verdict.warn { color: var(--warn); background: rgba(251,191,36,.10); border-color: rgba(251,191,36,.55); }
+  .verdict.bad, .verdict.fail { color: var(--bad); background: rgba(248,113,113,.10); border-color: rgba(248,113,113,.55); }
+  .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 12px; color: var(--dim); }
+  .facts b { color: var(--text); font: 700 12px var(--mono); }
+  /* ---- journey (training slider) */
+  #journey .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+  #epnum { font: 800 34px/1 var(--sans); color: var(--text); }
+  #epnum small { font-size: 14px; font-weight: 500; color: var(--dim); margin-left: 6px; }
+  .chip { display: inline-block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
+          border: 1px solid var(--panel-border); color: var(--dim); margin-left: 8px; vertical-align: middle; }
+  #curve { height: 92px; margin-top: 8px; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; background: transparent; margin: 0; height: 26px; cursor: pointer; }
+  input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: #0a1020; border: 1px solid var(--panel-border); }
+  input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: #0a1020; border: 1px solid var(--panel-border); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7px; border-radius: 50%;
+          background: var(--accent); border: 3px solid #0b1224; box-shadow: 0 0 0 1px var(--accent), 0 0 12px rgba(56,189,248,.6); }
+  input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 3px solid #0b1224;
+          box-shadow: 0 0 0 1px var(--accent), 0 0 12px rgba(56,189,248,.6); }
+  #ticks { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--faint); padding: 0 4px; margin-top: 2px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  button, select { font: 600 13px var(--sans); color: var(--text); background: #0d1630; border: 1px solid var(--panel-border);
+          border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+  button:hover, select:hover { border-color: var(--accent); }
+  button.primary { background: color-mix(in srgb, var(--accent) 22%, #0d1630); border-color: var(--accent); }
+  button.on { border-color: var(--good); color: var(--good); }
+  label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--dim); cursor: pointer; }
+  .spacer { flex: 1; }
+  #plotcard { padding-bottom: 10px; }
+  #plot { height: 118px; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--dim); flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<div id="app">
+  <main>
+    <div id="stage"><canvas id="scene"></canvas></div>
+
+    <section class="card" id="journey">
+      <div class="head">
+        <div>
+          <div class="label" style="margin-bottom:4px">Training progress — drag to see the policy after N episodes</div>
+          <div id="epnum">0<small>training episodes</small><span class="chip" id="stagechip"></span></div>
+        </div>
+        <div class="legend" id="curvelegend">
+          <span><i style="background:var(--good)"></i>balanced</span>
+          <span><i style="background:var(--blue)"></i>reached the top</span>
+          <span id="curvenote" style="color:var(--faint)"></span>
+        </div>
+      </div>
+      <canvas id="curve"></canvas>
+      <input type="range" id="snap" min="0" max="0" step="1" value="0" aria-label="Training episode">
+      <div id="ticks"></div>
+      <div class="controls">
+        <button id="first" title="First snapshot (untrained)">⏮</button>
+        <button id="prev" title="Previous snapshot (←)">◀</button>
+        <button id="next" title="Next snapshot (→)">▶</button>
+        <button id="last" title="Last snapshot (trained)">⏭</button>
+        <button id="story" class="primary" title="Play every snapshot in order">▶▶ Play the training story</button>
+        <span class="spacer"></span>
+        <label class="chk"><input type="checkbox" id="auto"> auto-advance</label>
+      </div>
+    </section>
+
+    <section class="card" id="plotcard">
+      <div class="head" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div class="label" style="margin-bottom:6px">Angle from upright over time (up = upright)</div>
+        <div class="legend"><span><i style="background:var(--accent)"></i>this snapshot</span><span><i style="background:#6b7a99"></i>previous snapshot</span></div>
+      </div>
+      <canvas id="plot"></canvas>
+      <div class="controls">
+        <button id="play" class="primary">⏸ Pause</button>
+        <button id="replay">↻ Replay</button>
+        <select id="speed" aria-label="Speed">
+          <option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option>
+          <option value="2">2×</option><option value="4">4×</option>
+        </select>
+        <input type="range" id="scrub" min="0" max="1" step="0.01" value="0" style="flex:1;min-width:140px" aria-label="Time">
+        <label class="chk"><input type="checkbox" id="loop" checked> loop</label>
+        <label class="chk"><input type="checkbox" id="trail" checked> trail</label>
+      </div>
+    </section>
+  </main>
+
+  <aside>
+    <section class="card">
+      <div class="label">Control mode</div>
+      <div class="big" id="mode">DQN</div>
+      <div class="sub" id="modesub">greedy policy (no exploration)</div>
+      <div class="toprow"><span class="pill"><i></i><span id="phase">SWINGING UP</span></span><span class="mono" id="time">t = 0.00 s</span></div>
+    </section>
+    <section class="card">
+      <div class="label">Target</div>
+      <div class="row"><span class="k">upright θ* = 0.0°</span><span class="mono" id="err">error 0.0°</span></div>
+      <div class="bar"><b id="errbar" style="background:var(--phase)"></b></div>
+    </section>
+    <section class="card">
+      <div class="label">Telemetry</div>
+      <div class="row"><span class="k">Pendulum angle</span><span class="v"><span class="mono" id="v_th"></span><span class="s" id="s_th"></span></span></div>
+      <div class="row"><span class="k">Angular velocity</span><span class="v"><span class="mono" id="v_thd"></span><span class="s" id="s_thd"></span></span></div>
+      <div class="row"><span class="k">Support position</span><span class="v"><span class="mono" id="v_x"></span><span class="s" id="s_x"></span></span></div>
+      <div class="row"><span class="k">Support velocity</span><span class="v"><span class="mono" id="v_xd"></span><span class="s">&nbsp;</span></span></div>
+      <div class="row"><span class="k">Episode reward</span><span class="v"><span class="mono" id="v_ret"></span><span class="s">&nbsp;</span></span></div>
+    </section>
+    <section class="card">
+      <div class="label">Actuator / energy</div>
+      <div class="barrow"><span>Command u</span><div class="bar centered"><b id="ubar"></b></div><span class="mono" id="v_u" style="color:var(--accent)"></span></div>
+      <div class="barrow"><span>Swing energy</span><div class="bar"><b id="ebar" style="background:var(--amber)"></b><u id="emark"></u></div><span class="mono" id="v_e"></span></div>
+    </section>
+    <section class="card">
+      <div class="label">Outcome of this replay</div>
+      <div class="verdict" id="verdict"><b id="vtitle"></b><span id="vdetail"></span></div>
+      <div class="facts" id="facts"></div>
+    </section>
+  </aside>
+</div>
+
+<script>
+"use strict";
+const D = /*__ARENA_DATA__*/null;
+const SN = D.snapshots, G = D.geometry;
+const PH = ["swinging_up", "stabilizing", "balanced", "failed"];
+const PH_COL = ["#60a5fa", "#fbbf24", "#34d399", "#f87171"];
+const PH_LAB = ["SWINGING UP", "STABILIZING", "BALANCED", "FAILED"];
+const C = { bgTop: "#0b1224", bgBot: "#070b16", panel: "#101a32", accent: "#38bdf8", steel: "#9aa8bd", steelLight: "#dbe4f0",
+            steelDark: "#4a566b", carriage: "#2a3b60", carriageEdge: "#4e6490", bearing: "#3b4d78", rod: "#dfe7f5",
+            bob: "#f59e0b", limit: "#f87171", text: "#e6edf7", dim: "#8b9bb8", faint: "#5b6b88" };
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const wrap = a => { a = (a + Math.PI) % (2 * Math.PI); if (a < 0) a += 2 * Math.PI; return a - Math.PI; };
+const MONO = "Consolas, 'DejaVu Sans Mono', Menlo, monospace", SANS = "'Segoe UI', 'Helvetica Neue', 'DejaVu Sans', Arial, sans-serif";
+
+// ------------------------------------------------------------------ state
+const st = { si: SN.length - 1, t: 0, playing: true, speed: 1, loop: true, trail: true, auto: false, hold: 0, dirty: true, story: false };
+let W = 0, H = 0, DPR = 1, L = {}, staticLayer = null;
+const sc = $("scene"), sg = sc.getContext("2d"), pc = $("plot"), pg = pc.getContext("2d"), cc = $("curve"), cg = cc.getContext("2d");
+const cur = () => SN[st.si];
+const prevSnap = () => SN[st.si - 1] || null;
+const endT = r => r.t[r.n - 1];
+
+// ------------------------------------------------------------------ sampling a recorded rollout
+function sample(r, t) {
+  const f = clamp(t / r.dt, 0, r.n - 1), i = Math.floor(f), j = Math.min(r.n - 1, i + 1), a = f - i;
+  const mix = k => r[k][i] + (r[k][j] - r[k][i]) * a;
+  return { x: mix("x"), xd: mix("xd"), th: r.th[i] + wrap(r.th[j] - r.th[i]) * a, thd: mix("thd"), u: mix("u"), act: mix("act"),
+           e: mix("e"), ret: mix("ret"), ph: r.ph[i] };
+}
+function tipAt(r, i) {            // screen position of the pendulum tip for recorded frame i
+  const px = L.cx + r.x[i] * L.scale;
+  return [px + G.length * L.scale * Math.sin(r.th[i]), L.cy - G.length * L.scale * Math.cos(r.th[i])];
+}
+
+// ------------------------------------------------------------------ canvas helpers
+function rr(g, x, y, w, h, r) {
+  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+function lerpHex(a, b, t) {
+  const p = s => [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16));
+  const A = p(a), B = p(b); return "rgb(" + A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(",") + ")";
+}
+function text(g, s, x, y, font, color, align = "left", base = "alphabetic") {
+  g.font = font; g.fillStyle = color; g.textAlign = align; g.textBaseline = base; g.fillText(s, x, y);
+}
+function setupCanvas(c, g, w, h) {
+  c.width = Math.round(w * DPR); c.height = Math.round(h * DPR); c.style.height = h + "px"; g.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+
+// ------------------------------------------------------------------ layout + static layer (rails, ruler, limits)
+function layout() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = Math.max(320, sc.parentElement.clientWidth);
+  H = Math.round(clamp(W * 0.56, 380, 500));
+  setupCanvas(sc, sg, W, H);
+  const half = G.rail_half + 0.17;
+  const scale = Math.min((W - 60) / (2 * half), (H - 130) / (2 * G.length + 0.3));
+  L = { scale, cx: W / 2, cy: Math.round(H * 0.53), rodDy: Math.round(0.05 * scale), postX: G.rail_half + 0.12 };
+  const cw = Math.max(280, $("journey").clientWidth - 32);
+  setupCanvas(cc, cg, cw, 92);
+  setupCanvas(pc, pg, Math.max(280, $("plotcard").clientWidth - 32), 118);
+  staticLayer = buildStatic();
+  st.dirty = true;
+}
+function buildStatic() {
+  const c = document.createElement("canvas"); c.width = Math.round(W * DPR); c.height = Math.round(H * DPR);
+  const g = c.getContext("2d"); g.scale(DPR, DPR);
+  const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, C.bgTop); bg.addColorStop(1, C.bgBot);
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  const minor = 0.05 * L.scale;                                        // engineering grid: 5 cm / 25 cm
+  for (let k = -60; k <= 60; k++) {
+    g.strokeStyle = "rgba(160,180,220," + (k % 5 === 0 ? 0.075 : 0.032) + ")"; g.lineWidth = 1;
+    const gx = Math.round(L.cx + k * minor) + .5, gy = Math.round(L.cy + k * minor) + .5;
+    if (gx >= 0 && gx < W) { g.beginPath(); g.moveTo(gx, 0); g.lineTo(gx, H); g.stroke(); }
+    if (gy >= 0 && gy < H) { g.beginPath(); g.moveTo(0, gy); g.lineTo(W, gy); g.stroke(); }
+  }
+  const X = m => L.cx + m * L.scale;
+  // ruler
+  const ry = H - 36;
+  g.strokeStyle = C.steelDark; g.lineWidth = 1; g.beginPath(); g.moveTo(X(-G.rail_half), ry); g.lineTo(X(G.rail_half), ry); g.stroke();
+  const n = Math.round(2 * G.rail_half / 0.1);
+  for (let i = 0; i <= n; i++) {
+    const m = -G.rail_half + i * 0.1, major = Math.abs(Math.round(m / 0.2) * 0.2 - m) < 1e-6;
+    g.strokeStyle = major ? C.steel : C.steelDark; g.beginPath(); g.moveTo(X(m), ry); g.lineTo(X(m), ry + (major ? 9 : 5)); g.stroke();
+    if (major) text(g, Math.abs(m) > 1e-6 ? (m > 0 ? "+" : "") + m.toFixed(1) : "0", X(m), ry + 22, "11px " + MONO, C.faint, "center");
+  }
+  text(g, "support position x [m]", X(G.rail_half) + 12, ry + 4, "11px " + MONO, C.faint);
+  // travel limits
+  const top = L.cy - 0.34 * L.scale, bot = L.cy + 0.34 * L.scale;
+  for (const s of [-1, 1]) {
+    const lx = Math.round(X(s * G.rail_half)) + .5, px = X(s * L.postX);
+    g.fillStyle = "rgba(248,113,113,.09)"; g.fillRect(Math.min(px, lx), top, Math.abs(px - lx), bot - top);
+    g.strokeStyle = C.limit; g.setLineDash([6, 6]); g.beginPath(); g.moveTo(lx, top); g.lineTo(lx, bot); g.stroke(); g.setLineDash([]);
+    text(g, "TRAVEL LIMIT", lx, top - 8, "11px " + MONO, C.limit, "center");
+  }
+  // guide rods
+  const xe = L.postX + 0.02, x0 = X(-xe), x1 = X(xe), th = 12;
+  for (const ry2 of [L.cy - L.rodDy, L.cy + L.rodDy]) {
+    const gr = g.createLinearGradient(0, ry2 - th / 2, 0, ry2 + th / 2);
+    gr.addColorStop(0, C.steelDark); gr.addColorStop(.28, C.steelLight); gr.addColorStop(.45, "#ffffff"); gr.addColorStop(.7, C.steel); gr.addColorStop(1, C.steelDark);
+    g.fillStyle = gr; g.fillRect(x0, ry2 - th / 2, x1 - x0, th);
+  }
+  for (const s of [-1, 1]) {                                            // end posts with bolts
+    const px = X(s * L.postX), h = 2 * L.rodDy + 56;
+    rr(g, px - 13, L.cy - h / 2, 26, h, 5); g.fillStyle = "#243150"; g.fill(); g.strokeStyle = C.carriageEdge; g.stroke();
+    for (const by of [L.cy - h / 2 + 10, L.cy + h / 2 - 10]) {
+      g.beginPath(); g.arc(px, by, 3, 0, 7); g.fillStyle = C.steelDark; g.fill(); g.strokeStyle = C.steel; g.stroke();
+    }
+  }
+  text(g, "GUIDE ROD", X(-L.postX) + 22, L.cy - L.rodDy - 12, "11px " + MONO, C.faint);
+  text(g, "GUIDE ROD", X(-L.postX) + 22, L.cy + L.rodDy + 22, "11px " + MONO, C.faint);
+  text(g, "MOVING-SUPPORT PENDULUM", 20, 28, "700 16px " + SANS, C.text);
+  text(g, "Translating support on two parallel guide rods  |  swing-up and stabilization", 20, 48, "12px " + SANS, C.dim);
+  return c;
+}
+
+// ------------------------------------------------------------------ scene
+function drawScene(r, t, f) {
+  const g = sg, S = L.scale;
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  g.drawImage(staticLayer, 0, 0, W, H);
+  const px = L.cx + f.x * S, py = L.cy, th = wrap(f.th), len = G.length * S;
+  const tip = [px + len * Math.sin(f.th), py - len * Math.cos(f.th)];
+  const col = PH_COL[f.ph];
+
+  // swing circle + upright reference + angle arc
+  g.strokeStyle = "rgba(120,135,165,.35)"; g.lineWidth = 1; g.beginPath(); g.arc(px, py, len, 0, 7); g.stroke();
+  g.strokeStyle = C.accent; g.setLineDash([7, 6]); g.beginPath(); g.moveTo(px, py - 14); g.lineTo(px, py - len - 34); g.stroke(); g.setLineDash([]);
+  text(g, "UPRIGHT  θ = 0", px + 8, py - len - 30, "11px " + MONO, C.accent);
+  g.strokeStyle = C.accent; g.lineWidth = 2; g.beginPath(); g.arc(px, py, 58, -Math.PI / 2, -Math.PI / 2 + th, th < 0); g.stroke();
+  const mid = -Math.PI / 2 + th / 2, right = Math.cos(mid) >= 0;
+  text(g, (th >= 0 ? "+" : "") + (th * 180 / Math.PI).toFixed(1) + "°", px + 72 * Math.cos(mid) + (right ? 6 : -6), py + 72 * Math.sin(mid),
+       "11px " + MONO, C.text, right ? "left" : "right", "middle");
+
+  // trail (positions of the tip over the last 1.5 s of the recording)
+  if (st.trail) {
+    const i1 = Math.floor(t / r.dt), i0 = Math.max(0, i1 - Math.round(1.5 / r.dt));
+    for (let i = i0 + 1; i <= Math.min(i1, r.n - 1); i++) {
+      const k = (i - i0) / Math.max(1, i1 - i0), a = tipAt(r, i - 1), b = tipAt(r, i);
+      g.strokeStyle = lerpHex("#0b1224", C.bob, .15 + .7 * k * k); g.lineWidth = 2;
+      g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+    }
+  }
+
+  // pendulum rod (with counter-weight stub), shadow, bob
+  const dx = tip[0] - px, dy = tip[1] - py, ln = Math.hypot(dx, dy) || 1, ux = dx / ln, uy = dy / ln;
+  const back = [px - ux * 14, py - uy * 14];
+  const quad = (w, off) => { const h = w / 2, nx = -uy, ny = ux;
+    g.beginPath(); g.moveTo(back[0] + nx * h + off, back[1] + ny * h + off); g.lineTo(tip[0] + nx * h + off, tip[1] + ny * h + off);
+    g.lineTo(tip[0] - nx * h + off, tip[1] - ny * h + off); g.lineTo(back[0] - nx * h + off, back[1] - ny * h + off); g.closePath(); };
+  quad(8, 4); g.fillStyle = "rgba(0,0,0,.28)"; g.fill();
+  quad(9, 0); g.fillStyle = lerpHex(C.rod, C.bgTop, .45); g.fill();
+  quad(6, 0); g.fillStyle = C.rod; g.fill();
+  g.beginPath(); g.arc(tip[0], tip[1], 16, 0, 7); g.fillStyle = lerpHex(C.bob, "#000000", .45); g.fill();
+  g.beginPath(); g.arc(tip[0], tip[1], 14, 0, 7); g.fillStyle = C.bob; g.fill();
+  g.beginPath(); g.arc(tip[0] - 4, tip[1] - 5, 5, 0, 7); g.fillStyle = lerpHex(C.bob, "#ffffff", .55); g.fill();
+  g.save(); g.shadowColor = col; g.shadowBlur = 12; g.strokeStyle = col; g.lineWidth = 2;
+  g.beginPath(); g.arc(tip[0], tip[1], 21, 0, 7); g.stroke(); g.restore();
+
+  // carriage: plate + linear bearings on both rods
+  const hw = 0.095 * S, ph = 2 * L.rodDy + 10;
+  g.save(); if (f.ph === 3) { g.shadowColor = C.limit; g.shadowBlur = 18; }
+  rr(g, px - hw, py - ph / 2, 2 * hw, ph, 7); g.fillStyle = C.carriage; g.fill(); g.lineWidth = 2; g.strokeStyle = f.ph === 3 ? C.limit : C.carriageEdge; g.stroke(); g.restore();
+  for (const s of [-1, 1]) {
+    rr(g, px - hw - 4, py + s * L.rodDy - 10, 2 * hw + 8, 20, 5); g.fillStyle = C.bearing; g.fill(); g.lineWidth = 1; g.strokeStyle = C.carriageEdge; g.stroke();
+    for (const bx of [px - hw + 4, px + hw - 4]) { g.beginPath(); g.arc(bx, py + s * L.rodDy, 2, 0, 7); g.fillStyle = C.steel; g.fill(); }
+  }
+  // drive command arrow
+  const ay = py - L.rodDy - 34, alen = f.u * 80;
+  g.strokeStyle = C.faint; g.lineWidth = 1; g.beginPath(); g.moveTo(px - 84, ay); g.lineTo(px + 84, ay); g.moveTo(px, ay - 4); g.lineTo(px, ay + 4); g.stroke();
+  if (Math.abs(alen) > 2) {
+    const s = Math.sign(alen), ex = px + alen; g.strokeStyle = C.accent; g.lineWidth = 3; g.beginPath(); g.moveTo(px, ay); g.lineTo(ex, ay); g.stroke();
+    g.fillStyle = C.accent; g.beginPath(); g.moveTo(ex + s * 9, ay); g.lineTo(ex, ay - 6); g.lineTo(ex, ay + 6); g.closePath(); g.fill();
+  }
+  text(g, "DRIVE", px - 90, ay, "11px " + MONO, C.faint, "right", "middle");
+  // pivot
+  g.beginPath(); g.arc(px, py, 13, 0, 7); g.fillStyle = "#090e1c"; g.fill();
+  g.beginPath(); g.arc(px, py, 10, 0, 7); g.fillStyle = lerpHex(C.steelDark, C.steelLight, .35); g.fill();
+  g.strokeStyle = C.accent; g.lineWidth = 2; g.beginPath(); g.arc(px, py, 12.5, 0, 7); g.stroke();
+  g.beginPath(); g.arc(px, py, 4, 0, 7); g.fillStyle = "#090e1c"; g.fill();
+
+  // kick marker
+  if (r.kick_t != null && t >= r.kick_t && t < r.kick_t + 0.9) {
+    const a = 1 - (t - r.kick_t) / 0.9; g.save(); g.globalAlpha = a;
+    text(g, "⚡ KICK", tip[0] + 26, tip[1] - 14, "700 14px " + SANS, C.warn); g.restore();
+  }
+  // snapshot badge (top right)
+  const bt = "EPISODE " + r.episode;
+  g.font = "700 13px " + SANS; const bw = g.measureText(bt).width + 28;
+  rr(g, W - bw - 16, 16, bw, 28, 14); g.fillStyle = "rgba(16,26,50,.9)"; g.fill(); g.strokeStyle = C.accent; g.lineWidth = 1; g.stroke();
+  text(g, bt, W - bw / 2 - 16, 31, "700 13px " + SANS, C.text, "center", "middle");
+
+  // end-of-replay verdict
+  if (t >= endT(r) - 1e-6) {
+    const v = r.verdict, vc = { good: "#34d399", warn: "#fbbf24", bad: "#f87171", fail: "#f87171" }[v.kind];
+    g.font = "700 22px " + SANS; const w1 = g.measureText(v.title).width; g.font = "13px " + SANS; const w2 = g.measureText(v.detail).width;
+    const bw2 = Math.max(w1, w2) + 44, bh = 66, bx = L.cx - bw2 / 2, by = 70;
+    rr(g, bx, by, bw2, bh, 12); g.fillStyle = "rgba(10,16,32,.92)"; g.fill(); g.strokeStyle = vc; g.lineWidth = 1.5; g.stroke();
+    text(g, v.title, L.cx, by + 28, "700 22px " + SANS, vc, "center", "middle");
+    text(g, v.detail, L.cx, by + 50, "13px " + SANS, C.dim, "center", "middle");
+  }
+}
+
+// ------------------------------------------------------------------ angle-vs-time strip
+function drawPlot(r, t) {
+  const g = pg, w = pc.width / DPR, h = pc.height / DPR, pad = { l: 44, r: 12, t: 8, b: 20 };
+  g.setTransform(DPR, 0, 0, DPR, 0, 0); g.clearRect(0, 0, w, h);
+  const T = D.seconds, X = s => pad.l + s / T * (w - pad.l - pad.r), Y = deg => pad.t + deg / 180 * (h - pad.t - pad.b);
+  g.fillStyle = "rgba(52,211,153,.12)"; g.fillRect(pad.l, Y(0), w - pad.l - pad.r, Y(6) - Y(0));          // balance zone (+-6 deg)
+  g.strokeStyle = "rgba(139,155,184,.18)"; g.lineWidth = 1; g.fillStyle = C.faint; g.font = "11px " + MONO; g.textAlign = "right"; g.textBaseline = "middle";
+  for (const deg of [0, 90, 180]) { g.beginPath(); g.moveTo(pad.l, Y(deg) + .5); g.lineTo(w - pad.r, Y(deg) + .5); g.stroke(); g.fillText(deg + "°", pad.l - 6, clamp(Y(deg), 10, h - pad.b - 4)); }
+  g.textAlign = "center"; g.textBaseline = "alphabetic";
+  const step = T <= 8 ? 1 : T <= 16 ? 2 : 5;
+  for (let s = 0; s <= T + 1e-9; s += step) g.fillText(s + " s", X(s), h - 4);
+  const line = (rr_, upTo, color, width, alpha) => {
+    g.save(); g.globalAlpha = alpha; g.strokeStyle = color; g.lineWidth = width; g.beginPath();
+    let started = false;
+    for (let i = 0; i < rr_.n && rr_.t[i] <= upTo + 1e-9; i++) {
+      const deg = Math.abs(wrap(rr_.th[i])) * 180 / Math.PI, x = X(rr_.t[i]), y = Y(deg);
+      if (!started) { g.moveTo(x, y); started = true; } else g.lineTo(x, y);
+    }
+    g.stroke(); g.restore();
+  };
+  const pv = prevSnap();
+  if (pv) line(pv, T, "#6b7a99", 1.5, .55);
+  line(r, T, C.accent, 1.5, .28);                 // the whole recording, dim
+  line(r, t, C.accent, 2.5, 1);                   // the part played so far, bright
+  if (r.kick_t != null) { g.strokeStyle = C.warn; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(X(r.kick_t), pad.t); g.lineTo(X(r.kick_t), h - pad.b); g.stroke(); g.setLineDash([]); }
+  if (r.termination && r.termination !== "time_limit") {          // failure marker at the end
+    const i = r.n - 1; g.fillStyle = C.limit; g.font = "700 14px " + SANS; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("✕", X(r.t[i]), clamp(Y(Math.abs(wrap(r.th[i])) * 180 / Math.PI), 10, h - pad.b - 6));
+  }
+  g.strokeStyle = C.text; g.lineWidth = 1; g.beginPath(); g.moveTo(X(t) + .5, pad.t); g.lineTo(X(t) + .5, h - pad.b); g.stroke();
+}
+
+// ------------------------------------------------------------------ learning curve + slider alignment
+const PADC = 9;
+function epToIdx(ep) {            // fractional snapshot index of a training episode (snapshots need not be evenly spaced)
+  if (SN.length === 1) return 0;
+  if (ep <= SN[0].episode) return 0;
+  for (let i = 1; i < SN.length; i++) if (ep <= SN[i].episode) return i - 1 + (ep - SN[i - 1].episode) / Math.max(1, SN[i].episode - SN[i - 1].episode);
+  return SN.length - 1;
+}
+function drawCurve() {
+  const g = cg, w = cc.width / DPR, h = cc.height / DPR, top = 6, bot = h - 8, n = SN.length;
+  g.setTransform(DPR, 0, 0, DPR, 0, 0); g.clearRect(0, 0, w, h);
+  const X = idx => n === 1 ? w / 2 : PADC + idx / (n - 1) * (w - 2 * PADC), Y = v => bot - v * (bot - top);
+  g.strokeStyle = "rgba(139,155,184,.18)"; g.lineWidth = 1;
+  for (const v of [0, .5, 1]) { g.beginPath(); g.moveTo(PADC, Y(v) + .5); g.lineTo(w - PADC, Y(v) + .5); g.stroke(); }
+  g.fillStyle = C.faint; g.font = "10px " + MONO; g.textAlign = "left"; g.fillText("100%", PADC + 2, Y(1) + 11); g.fillText("0%", PADC + 2, Y(0) - 3);
+  const K = D.curve;
+  if (K && K.episode.length) {
+    const series = (vals, color) => { g.strokeStyle = color; g.lineWidth = 2; g.beginPath();
+      K.episode.forEach((ep, i) => { const x = X(epToIdx(ep)), y = Y(vals[i] == null ? 0 : vals[i]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); };
+    series(K.swing, C.blue); series(K.balance, "#34d399");
+  } else {
+    text(g, "no evaluation log for this run", w / 2, h / 2, "12px " + SANS, C.faint, "center", "middle");
+  }
+  SN.forEach((s, i) => { g.beginPath(); g.arc(X(i), bot + 3, 1.8, 0, 7); g.fillStyle = i === st.si ? C.accent : C.faint; g.fill(); });
+  const cx = X(st.si); g.strokeStyle = C.accent; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx + .5, 2); g.lineTo(cx + .5, bot + 5); g.stroke();
+}
+
+// ------------------------------------------------------------------ HUD
+const fmt = (v, d, sign = true) => (sign && v >= 0 ? "+" : "") + v.toFixed(d);
+function updateHud(r, t, f) {
+  const th = wrap(f.th), errDeg = Math.abs(th) * 180 / Math.PI, col = PH_COL[f.ph];
+  document.documentElement.style.setProperty("--phase", col);
+  $("phase").textContent = PH_LAB[f.ph];
+  $("time").textContent = "t = " + t.toFixed(2) + " s";
+  $("err").textContent = "error " + errDeg.toFixed(1) + "°";
+  $("err").style.color = errDeg < 6 ? "var(--good)" : errDeg < 20 ? "var(--warn)" : "var(--text)";
+  $("errbar").style.width = (100 - errDeg / 180 * 100) + "%";
+  $("v_th").textContent = fmt(th * 180 / Math.PI, 2) + " deg"; $("s_th").textContent = fmt(th, 3) + " rad";
+  $("v_thd").textContent = fmt(f.thd, 2) + " rad/s"; $("s_thd").textContent = fmt(f.thd * 180 / Math.PI, 0) + " deg/s";
+  $("v_x").textContent = fmt(f.x, 3) + " m"; $("s_x").textContent = fmt(f.x / G.rail_half * 100, 0) + "% of travel";
+  $("v_xd").textContent = fmt(f.xd, 3) + " m/s"; $("v_ret").textContent = fmt(f.ret, 1);
+  $("v_u").textContent = fmt(f.u, 2);
+  const ub = $("ubar"); ub.style.left = f.u >= 0 ? "50%" : (50 + f.u * 50) + "%"; ub.style.width = Math.abs(f.u) * 50 + "%";
+  $("v_e").textContent = f.e.toFixed(2); $("ebar").style.width = clamp(f.e / 1.25, 0, 1) * 100 + "%"; $("emark").style.left = (1 / 1.25 * 100) + "%";
+}
+function updateStatic() {            // parts of the HUD that only change with the snapshot
+  const r = cur();
+  $("epnum").firstChild.textContent = r.episode;
+  $("stagechip").textContent = r.stage || ""; $("stagechip").style.display = r.stage ? "inline-block" : "none";
+  $("mode").textContent = "DQN · EPISODE " + r.episode;
+  $("modesub").textContent = "greedy policy, no exploration · " + D.start + " · seed " + D.seed;
+  $("verdict").className = "verdict " + r.verdict.kind; $("vtitle").textContent = r.verdict.title; $("vdetail").textContent = r.verdict.detail;
+  const rows = [["Time to upright", r.time_to_upright == null ? "never" : r.time_to_upright.toFixed(2) + " s"],
+                ["Balanced for", r.balanced_time.toFixed(1) + " s"], ["Episode length", r.duration.toFixed(1) + " s"],
+                ["Final return", r.ret[r.n - 1].toFixed(0)], ["Env steps trained", r.env_steps.toLocaleString()],
+                ["Ended by", String(r.termination).replace("_", " ")]];
+  $("facts").innerHTML = rows.map(([k, v]) => "<span>" + k + "</span><b>" + v + "</b>").join("");
+  $("scrub").max = endT(r).toFixed(2);
+  $("snap").value = st.si;
+  $("curvenote").textContent = D.curve && D.curve.scenario
+    ? "greedy evaluation during training · " + (D.curve.eval_episodes || "?") + " fixed starts · scenario: " + D.curve.scenario : "";
+  drawCurve();
+}
+function fitFrame() {                // let the embedding Streamlit iframe be exactly as tall as this page
+  try {
+    const h = Math.ceil($("app").getBoundingClientRect().bottom + window.scrollY) + 12, f = window.frameElement;
+    if (f && Math.abs(f.getBoundingClientRect().height - h) > 3) { f.style.height = h + "px"; f.height = h; }
+  } catch (e) { /* cross-origin embedding: keep the height Streamlit gave us */ }
+}
+
+// ------------------------------------------------------------------ control
+function setSnap(i, play = true) {
+  st.si = clamp(i, 0, SN.length - 1); st.t = 0; st.hold = 0; if (play) st.playing = true;
+  updateStatic(); syncButtons(); st.dirty = true;
+}
+function syncButtons() {
+  $("play").textContent = st.playing ? "⏸ Pause" : "▶ Play";
+  $("story").classList.toggle("on", st.story); $("story").textContent = st.story ? "■ Stop the story" : "▶▶ Play the training story";
+  $("auto").checked = st.auto;
+}
+$("snap").addEventListener("input", e => { st.story = false; st.auto = false; setSnap(+e.target.value); });
+$("first").onclick = () => { st.story = false; setSnap(0); };
+$("prev").onclick = () => { st.story = false; setSnap(st.si - 1); };
+$("next").onclick = () => { st.story = false; setSnap(st.si + 1); };
+$("last").onclick = () => { st.story = false; setSnap(SN.length - 1); };
+$("story").onclick = () => {
+  st.story = !st.story; st.auto = st.story;
+  if (st.story) { if (st.speed < 2) { st.speed = 2; $("speed").value = "2"; } setSnap(0); } else syncButtons();
+};
+$("auto").onchange = e => { st.auto = e.target.checked; if (!st.auto) st.story = false; syncButtons(); };
+$("play").onclick = () => { st.playing = !st.playing; if (st.playing && st.t >= endT(cur()) - 1e-6) { st.t = 0; st.hold = 0; } syncButtons(); st.dirty = true; };
+$("replay").onclick = () => { st.t = 0; st.hold = 0; st.playing = true; syncButtons(); st.dirty = true; };
+$("speed").onchange = e => { st.speed = +e.target.value; };
+$("loop").onchange = e => { st.loop = e.target.checked; };
+$("trail").onchange = e => { st.trail = e.target.checked; st.dirty = true; };
+$("scrub").addEventListener("input", e => { st.playing = false; st.t = +e.target.value; syncButtons(); st.dirty = true; });
+window.addEventListener("keydown", e => {
+  if (e.target.tagName === "SELECT") return;
+  if (e.code === "Space") { e.preventDefault(); $("play").click(); }
+  else if (e.key === "ArrowLeft") { st.story = false; setSnap(st.si - 1); }
+  else if (e.key === "ArrowRight") { st.story = false; setSnap(st.si + 1); }
+  else if (e.key === "r" || e.key === "R") $("replay").click();
+});
+window.addEventListener("resize", () => { layout(); updateStatic(); fitFrame(); });
+
+let lastTs = performance.now();
+function frame(ts) {
+  const dt = Math.min(0.25, (ts - lastTs) / 1000); lastTs = ts;     // capped so a background tab does not jump ahead
+  const r = cur(), end = endT(r);
+  if (st.playing) {
+    st.t += dt * st.speed; st.dirty = true;
+    if (st.t >= end) {
+      st.t = end; st.hold += dt;
+      if (st.hold > 1.3) {
+        st.hold = 0;
+        if (st.auto && st.si < SN.length - 1) setSnap(st.si + 1);
+        else if (st.loop) { st.t = 0; if (st.auto) { st.auto = false; st.story = false; syncButtons(); } }
+        else { st.playing = false; syncButtons(); }
+      }
+    }
+  }
+  if (st.dirty) {
+    st.dirty = false;
+    const rr2 = cur(), f = sample(rr2, st.t);
+    drawScene(rr2, st.t, f); drawPlot(rr2, st.t); updateHud(rr2, st.t, f);
+    $("scrub").value = st.t.toFixed(2);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ------------------------------------------------------------------ start
+$("snap").max = SN.length - 1; $("snap").disabled = SN.length < 2;
+$("ticks").innerHTML = [0, Math.floor((SN.length - 1) / 2), SN.length - 1].filter((v, i, a) => a.indexOf(v) === i)
+  .map(i => "<span>ep " + SN[i].episode + "</span>").join("");
+layout(); updateStatic(); syncButtons(); fitFrame();
+if (D.autoplay === false) { st.playing = false; syncButtons(); }
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

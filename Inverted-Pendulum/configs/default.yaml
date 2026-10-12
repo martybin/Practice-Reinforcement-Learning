@@ -1,0 +1,94 @@
+# Physical mechanism, task and reward. Units: SI (m, kg, s, rad, N). Angle: 0 = upright, +-pi = hanging down.
+#
+# Assumed mechanism: a carriage ("support") translates horizontally on two parallel guide rods and
+# carries a hinged pendulum. Only the carriage is driven. See README "Mechanical model".
+
+seed: 0
+
+physics:
+  mechanism: translating_support
+  # inertia
+  support_mass: 0.50            # kg   carriage + bearings + reflected motor/pulley inertia
+  pendulum_mass: 0.15           # kg
+  pendulum_length: 0.40         # m    pivot -> tip
+  com_fraction: 0.5             #      pivot -> centre of mass as a fraction of length
+  inertia_com: null             # kg m^2 about the COM (null -> uniform rod m L^2 / 12)
+  gravity: 9.81
+  # friction
+  support_viscous_friction: 0.15   # N s/m
+  support_coulomb_friction: 0.05   # N
+  pivot_viscous_friction: 0.002    # N m s/rad
+  pivot_coulomb_friction: 0.0005   # N m
+  support_friction_eps: 0.01       # m/s    tanh smoothing width
+  pivot_friction_eps: 0.05         # rad/s
+  # actuator (belt-driven DC motor)
+  max_force: 10.0               # N at full command (stall / current limit)
+  motor_free_speed: 4.0         # m/s no-load speed at full command (back-EMF); null -> ideal force source
+  actuator_time_constant: 0.02  # s    first-order lag of the driver + motor (0 -> instantaneous)
+  # limits
+  rail_half_length: 0.60        # m    usable travel is +-0.60 m about the rail centre
+  max_support_speed: 3.0        # m/s
+  max_pendulum_speed: 40.0      # rad/s  divergence guard
+  # integration
+  dt: 0.005                     # s    physics step (must divide env.control_dt)
+  integrator: rk4               # rk4 | scipy
+
+env:
+  control_dt: 0.02              # s    agent decision period (50 Hz)
+  max_episode_seconds: 10.0
+  start_mode: mixed             # hanging | upright | mixed | random
+  mixed_upright_probability: 0.5
+  hanging_angle_noise: 0.1      # rad
+  hanging_velocity_noise: 0.1   # rad/s
+  upright_angle_range: 0.25     # rad
+  upright_velocity_range: 0.5   # rad/s
+  start_position_range: 0.05    # m
+  success_mode: balance         # balance | reach
+  terminate_on_success: true
+  upright_region: 0.35          # rad  "swing-up reached"
+  balance_angle_tol: 0.1        # rad
+  balance_velocity_tol: 1.0     # rad/s
+  hold_seconds: 2.0             # continuous balance needed for success
+  catch_angle: 0.35             # rad  (success_mode: reach)
+  catch_velocity: 4.0           # rad/s
+  action_mode: discrete
+  action_levels: [-1.0, 0.0, 1.0]   # normalized drive commands the DQN can choose from
+  omega_scale: 15.0             # rad/s mapped to 1.0 in the observation
+  include_prev_action: true
+  noise_position: 0.0
+  noise_velocity: 0.0
+  noise_angle: 0.0
+  noise_angular_velocity: 0.0
+  physics_randomization: 0.0
+  disturbance_probability: 0.0
+  disturbance_magnitude: 3.0    # rad/s
+
+reward:                         # see README "Reward function"
+  w_upright: 1.0
+  w_precision: 1.0
+  precision_sigma: 0.25         # rad
+  w_spin: 0.4
+  spin_scale: 6.0               # rad/s
+  w_position: 0.5
+  w_support_speed: 0.02
+  w_effort: 0.02
+  w_smoothness: 0.02
+  success_bonus: 50.0
+  violation_penalty: 20.0
+
+# Model-based reference controller (energy shaping swing-up + LQR). Gains tuned for the physics above.
+baseline:
+  energy_gain: 2.7
+  energy_margin: 0.10
+  kick_command: 1.0
+  kick_speed: 0.15
+  centering_stiffness: 0.4
+  centering_damping: 1.3
+  washout_time: 1.6
+  pump_travel: 0.53
+  wall_start: 0.87
+  capture_angle: 0.57
+  capture_speed: 6.8
+  release_angle: 1.0
+  q_diag: [4.0, 1.0, 60.0, 4.0]
+  r_weight: 0.5

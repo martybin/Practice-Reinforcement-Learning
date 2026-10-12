@@ -1,0 +1,18 @@
+# Real-time Pygame simulator settings (scripts/simulate.py). CLI flags override these.
+simulation:
+  window_width: 1280
+  window_height: 760
+  fps: 60
+  mode: manual                 # manual | random | dqn | baseline
+  start: hanging               # hanging | upright | random  (what R resets to)
+  episode_seconds: 120.0
+  manual_command: 0.8          # keyboard drive magnitude (fraction of full command)
+  auto_reset_delay: 2.0        # s after a failure in agent modes (0 = wait for R)
+  show_trail: true
+  trail_seconds: 1.5
+  show_help: true
+  speed: 1.0
+  screenshot_dir: outputs/screenshots
+  checkpoint: null             # e.g. checkpoints/combined/best.pt
+  stabilizer_checkpoint: null
+  seed: 0

@@ -1,0 +1,16 @@
+# Core (simulation, training, evaluation)
+numpy>=1.26
+scipy>=1.11
+gymnasium>=0.29
+torch>=2.2
+pyyaml>=6.0
+pandas>=2.0
+matplotlib>=3.8
+pygame>=2.5
+
+# Optional
+tensorboard>=2.14      # --tensorboard logging
+streamlit>=1.30        # experiment dashboard (streamlit run src/pendulum_rl/visualization/dashboard.py)
+
+# Development
+pytest>=8.0
