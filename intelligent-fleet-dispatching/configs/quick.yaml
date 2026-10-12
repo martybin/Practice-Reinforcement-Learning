@@ -1,0 +1,19 @@
+# Smoke-test overrides, merged on top of default.yaml when scripts are run with --quick.
+# These settings only check that the pipeline runs end to end. They are NOT a training budget that
+# produces meaningful policies.
+
+training:
+  run_name: smoke
+  episodes: 3
+  checkpoint_every_episodes: 1
+
+agent:
+  hidden_sizes: [128, 128]
+  replay_capacity: 5000
+  learning_starts: 200
+  batch_size: 64
+  target_update_interval: 100
+  epsilon_decay_steps: 1000
+
+evaluation:
+  n_episodes: 3

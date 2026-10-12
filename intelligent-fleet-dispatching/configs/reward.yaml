@@ -1,0 +1,36 @@
+# Reward configuration. Each component is computed from raw quantities that the simulator measures,
+# multiplied by `coefficient`, and dropped entirely when `enabled` is false (for ablations).
+#
+# Reward for one decision step = sum over enabled components of coefficient * raw_quantity, where the
+# raw quantities are the amounts that occurred between this decision and the next one.
+#
+# Anti-double-counting rules used here:
+#   * Truck waiting is charged only as accrued queue minutes. There is no extra per-queue-entry charge.
+#   * Breakdown repair time is NOT charged as waiting. The breakdown itself is charged once, as a
+#     fixed disruption cost.
+#   * Unnecessary travel is charged once, at dispatch, as the nominal minutes above the nearest
+#     operational shovel. Its time is not charged again as travel.
+#   * Shovel starvation counts only operational shovels with an empty queue, no loading truck, and no
+#     truck en route. Those minutes are disjoint from truck waiting by construction.
+
+reward:
+  payload:
+    enabled: true
+    coefficient: 1.0            # per 100 tonnes dumped at the depot (primary objective)
+  truck_wait:
+    enabled: true
+    coefficient: -0.05          # per truck-minute spent queued at a shovel. Roughly the opportunity cost
+                                # of ~7 t/min of hauling, which is the fleet's average productivity.
+  unnecessary_travel:
+    enabled: true
+    coefficient: -0.02          # per nominal minute by which the chosen shovel is farther than the nearest
+                                # operational shovel for that truck (measured at decision time)
+  shovel_starvation:
+    enabled: true
+    coefficient: -0.02          # per shovel-minute operational, not loading, with an empty queue and no truck en route
+  truck_breakdown:
+    enabled: true
+    coefficient: -1.0           # per truck breakdown event (fixed disruption cost, roughly one lost load)
+  invalid_action:
+    enabled: true
+    coefficient: -5.0           # per rejected action. Large enough that exploiting invalid actions never pays.

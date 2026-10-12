@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+
+# Test and tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Generated artefacts: never commit checkpoints, datasets, logs, or results
+checkpoints/*
+!checkpoints/.gitkeep
+results/*
+!results/.gitkeep
+data/*
+!data/.gitkeep
+*.pt
+*.pth
+*.tmp
+*.npz
+*.npy
+tensorboard/
+events.out.tfevents.*
+
+# Editor and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,82 @@
+# Central configuration for the fleet-dispatching study.
+#
+# All times are in minutes. Every number used by the simulator, the environment, the agent and the
+# experiments lives here (rewards live in reward.yaml). The data is SYNTHETIC: this is a simulation
+# for studying dispatch policies, not a validated model of any real mine.
+
+project:
+  name: intelligent-fleet-dispatching
+
+scenario:
+  # Fixes the synthetic fleet (per-truck speed, reliability and capacity). Episode randomness
+  # (breakdowns, travel jitter) is driven by the seed passed to env.reset(), not by this value.
+  seed: 42
+  n_trucks: 20
+  n_shovels: 4
+  # One 8-hour shift. Reaching the horizon is a time-limit truncation, not a terminal state.
+  horizon_minutes: 480.0
+  # Node 0 is the depot/dump (where trucks unload). Shovel j is node j+1. These are nominal one-way
+  # times for a truck with speed factor 1.0. Loaded trips use shovel_to_depot, empty trips depot_to_shovel.
+  depot_to_shovel_minutes: [8.0, 11.0, 14.0, 18.0]
+  shovel_to_depot_minutes: [9.0, 12.5, 15.5, 20.0]
+  truck_capacity_choices_tonnes: [218.0, 240.0, 290.0]
+  truck_speed_factor_range: [0.9, 1.15]        # multiplies every travel time of that truck
+  truck_reliability_factor_range: [0.7, 1.4]   # multiplies truck MTBF (>1 means more reliable)
+  shovel_loading_rate_tpm: [36.0, 40.0, 44.0, 48.0]  # tonnes per minute
+  unload_time_minutes: 3.0
+
+simulation:
+  breakdowns_enabled: true
+  disturbances_enabled: true   # lognormal noise (median 1) on travel, loading and unloading durations
+  truck_mtbf_minutes: 480.0    # mean driving time between truck breakdowns, before the reliability factor
+  truck_repair_median_minutes: 25.0
+  truck_repair_sigma: 0.5      # lognormal shape of repair durations
+  shovel_mtbf_minutes: 900.0   # mean operating time between shovel breakdowns
+  shovel_repair_median_minutes: 40.0
+  shovel_repair_sigma: 0.4
+  travel_jitter_sigma: 0.10
+  loading_jitter_sigma: 0.08
+  unload_jitter_sigma: 0.05
+
+env:
+  # Normalisation constant for time-valued observation features (minutes). Values are clipped to [0, 1].
+  time_scale_minutes: 60.0
+  # penalize: an invalid action costs reward and changes nothing. raise: fail immediately.
+  invalid_action_policy: penalize
+  # After this many consecutive invalid actions at one decision epoch, raise. This prevents a buggy
+  # policy from looping forever, because time does not advance while it keeps choosing invalid actions.
+  max_consecutive_invalid_actions: 10
+
+agent:
+  seed: 0
+  hidden_sizes: [256, 256]
+  gamma: 0.99
+  learning_rate: 0.0005
+  batch_size: 128
+  replay_capacity: 50000
+  learning_starts: 2000        # transitions collected before the first gradient step
+  train_every_steps: 1         # environment steps per gradient step
+  target_update_interval: 500  # hard target-network copy every N gradient steps
+  grad_clip_norm: 10.0
+  huber_delta: 1.0
+  double_dqn: true             # false gives vanilla masked DQN (used for ablations)
+  epsilon_start: 1.0
+  epsilon_end: 0.05
+  epsilon_decay_steps: 40000   # linear decay measured in environment steps
+  device: auto                 # auto | cpu | cuda
+
+training:
+  episodes: 300                # one episode = one 8-hour shift
+  seed_base: 10000             # training episode k uses reset seed seed_base + k
+  run_name: dqn_default
+  checkpoint_every_episodes: 25
+  save_replay_buffer: false    # the buffer is large (~200 MB at default size); resume restarts it empty
+
+evaluation:
+  seed_start: 50000            # evaluation seeds are disjoint from training seeds (checked at load time)
+  n_episodes: 30
+  policies: [dqn, random_valid, nearest_eligible, shortest_queue]
+
+paths:
+  results_dir: results
+  checkpoint_dir: checkpoints

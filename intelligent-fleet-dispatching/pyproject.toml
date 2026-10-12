@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "intelligent-fleet-dispatching"
+version = "0.1.0"
+description = "Masked Double DQN for simulated open-pit haul-truck dispatching (simulation study, synthetic data)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26",
+    "torch>=2.2",
+    "gymnasium>=1.0",
+    "pyyaml>=6.0",
+    "pandas>=2.1",
+    "matplotlib>=3.8",
+    "tensorboard>=2.15",
+]
+
+[project.optional-dependencies]
+dashboard = ["streamlit>=1.37"]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
